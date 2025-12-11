@@ -100,15 +100,23 @@ async def save_number(msg: types.Message):
     )
 
 # ------------ XABARNI FILTRLASH --------------
+# Yangi kelgan xabarlarni tekshiradi va faqat 1 marta yuboradi
+sent_messages = set()  # xabarlar idlarini saqlash uchun
+
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
-    # Faqat FORWARD_GURUPDA kelgan xabarlarni tekshiradi
+    # Faqat FORWARD_GROUPS guruhlaridan kelgan xabarlar
     if msg.chat.id not in FORWARD_GROUPS:
         return
 
-    # Faqat kalit so‘z bo‘lsa ishlaydi
+    # Kalit so'zga mos xabarlar
     if not match_keywords(msg.text):
         return
+
+    # Duplicate xabarni oldini olish
+    if msg.message_id in sent_messages:
+        return
+    sent_messages.add(msg.message_id)
 
     uid = str(msg.from_user.id)
     profile_url = f"https://t.me/{msg.from_user.username}" if msg.from_user.username else f"tg://user?id={msg.from_user.id}"
