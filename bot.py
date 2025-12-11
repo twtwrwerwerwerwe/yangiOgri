@@ -6,10 +6,10 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 
 # ------------ TOKEN --------------
-TOKEN = "8211942218:AAFK0H17Lek3MpFetL2N1HcfAeHB2TOgv5M"
+TOKEN = "7990459607:AAHabwIyHWo5e01xfpP79vrL-RpNWm1OlyA"
 
-# ------------ GURUH ID LAR --------------
-FORWARD_GROUPS = [-5005114463]
+# ------------ FORWARD GURUH ID LAR --------------
+FORWARD_GROUPS = [-5005114463]  # xabar yuboriladigan guruhlar
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -81,8 +81,10 @@ async def start(msg: types.Message):
         keyboard=[[KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
         resize_keyboard=True
     )
-    await msg.answer("Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
-                     reply_markup=btn)
+    await msg.answer(
+        "Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
+        reply_markup=btn
+    )
 
 # ------------ CONTACT SAQLASH --------------
 @dp.message(F.contact)
@@ -91,46 +93,50 @@ async def save_number(msg: types.Message):
     user_id = str(msg.from_user.id)
     db[user_id] = phone
     save_db(db)
-    await msg.answer(f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
-                     parse_mode="HTML",
-                     reply_markup=types.ReplyKeyboardRemove())
+    await msg.answer(
+        f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
+        parse_mode="HTML",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
 
-# ------------ XABARNI FILTRLASH --------------
-sent_messages = set()  # duplicate xabarlarni oldini olish uchun
-
+# ------------ XABARNI FILTRLASH (ADMIN CHECK) --------------
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
-    global sent_messages
-
+    # Faqat kalit so‘z bo‘lsa ishlaydi
     if not match_keywords(msg.text):
         return
 
-    msg_id_key = f"{msg.chat.id}_{msg.message_id}"
-    if msg_id_key in sent_messages:
-        return  # xabar oldin yuborilgan bo'lsa qayta yubormaymiz
-    sent_messages.add(msg_id_key)
-
     try:
+        # Botni admin qilgan guruhda xabarni o'chirish
         await msg.delete()
     except:
         pass
 
-    user = msg.from_user
-    uid = str(user.id)
+    # Foydalanuvchi adminligini tekshirish
+    try:
+        member = await bot.get_chat_member(msg.chat.id, msg.from_user.id)
+        if member.status not in ["administrator", "creator"]:
+            return
+    except:
+        return
 
-    profile_url = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
+    uid = str(msg.from_user.id)
+    profile_url = f"https://t.me/{msg.from_user.username}" if msg.from_user.username else f"tg://user?id={msg.from_user.id}"
     phone = db.get(uid, "Raqam berkitilgan")
     chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
     safe_text = html.escape(msg.text)
 
+    # Inline tugmalar
     buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
         [InlineKeyboardButton(text="📨 Habar manzili", url=chat_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept_{uid}")]
     ])
 
+    # Yuboriladigan matn
     text = f"<b>🔍 Yangi buyurtma topildi!</b>\n\n📝 <b>Matn:</b>\n{safe_text}\n\n"
 
+    # Guruhga faqat 1 marta yuborish
     for chat_id in FORWARD_GROUPS:
         await bot.send_message(chat_id, text, reply_markup=buttons, parse_mode="HTML")
 
@@ -140,9 +146,15 @@ async def accept_message(cb: types.CallbackQuery):
     accepter = html.escape(cb.from_user.full_name)
     old = cb.message.text
 
-    new = re.sub(r"📝 <b>Matn:</b>\n(.+?)(\n\n|$)",
-                 "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n",
-                 old, flags=re.DOTALL)
+    # Matn bo‘limini yangilash
+    new = re.sub(
+        r"📝 <b>Matn:</b>\n(.+?)(\n\n|$)",
+        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n",
+        old,
+        flags=re.DOTALL
+    )
+
+    # Kim qabul qilganini qo‘shish
     new += f"\n✅ <i>{accepter} qabul qildi</i>"
 
     await cb.message.edit_text(new, parse_mode="HTML")
@@ -150,7 +162,7 @@ async def accept_message(cb: types.CallbackQuery):
 
 # ------------ RUN --------------
 async def main():
-    await bot.delete_webhook()  # eski webhooklar bo'lsa o'chiramiz
+    await bot.delete_webhook()  # Webhook conflict oldini olish
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
