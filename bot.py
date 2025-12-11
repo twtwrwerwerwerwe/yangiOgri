@@ -9,9 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardBu
 TOKEN = "8211942218:AAFK0H17Lek3MpFetL2N1HcfAeHB2TOgv5M"
 
 # ------------ GURUH ID LAR --------------
-FORWARD_GROUPS = [
-    -5005114463
-]
+FORWARD_GROUPS = [-5005114463]
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -31,7 +29,6 @@ def save_db(db):
         json.dump(db, f, indent=4)
 
 db = load_db()
-
 
 # ------------ KALIT SO‘ZLAR --------------
 KEYWORDS = [
@@ -77,7 +74,6 @@ KEYWORDS = [
 def match_keywords(text: str) -> bool:
     return any(key in text.lower() for key in KEYWORDS)
 
-
 # ------------ /start --------------
 @dp.message(F.text == "/start")
 async def start(msg: types.Message):
@@ -85,34 +81,34 @@ async def start(msg: types.Message):
         keyboard=[[KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
         resize_keyboard=True
     )
-    await msg.answer(
-        "Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
-        reply_markup=btn
-    )
-
+    await msg.answer("Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
+                     reply_markup=btn)
 
 # ------------ CONTACT SAQLASH --------------
 @dp.message(F.contact)
 async def save_number(msg: types.Message):
     phone = msg.contact.phone_number
     user_id = str(msg.from_user.id)
-
     db[user_id] = phone
     save_db(db)
-
-    await msg.answer(
-        f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
-        parse_mode="HTML",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
+    await msg.answer(f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
+                     parse_mode="HTML",
+                     reply_markup=types.ReplyKeyboardRemove())
 
 # ------------ XABARNI FILTRLASH --------------
+sent_messages = set()  # duplicate xabarlarni oldini olish uchun
+
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
+    global sent_messages
 
     if not match_keywords(msg.text):
         return
+
+    msg_id_key = f"{msg.chat.id}_{msg.message_id}"
+    if msg_id_key in sent_messages:
+        return  # xabar oldin yuborilgan bo'lsa qayta yubormaymiz
+    sent_messages.add(msg_id_key)
 
     try:
         await msg.delete()
@@ -122,68 +118,39 @@ async def filter_messages(msg: types.Message):
     user = msg.from_user
     uid = str(user.id)
 
-    # Profil URL
-    profile_url = (
-        f"https://t.me/{user.username}"
-        if user.username else f"tg://user?id={user.id}"
-    )
-
-    # Telefon
+    profile_url = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
     phone = db.get(uid, "Raqam berkitilgan")
-
-    # Xabar linki
     chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
-
-    # Foydalanuvchi matni → HTML escape → 100% xatosiz
     safe_text = html.escape(msg.text)
 
-    # INLINE TUGMALAR
     buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
         [InlineKeyboardButton(text="📨 Habar manzili", url=chat_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept_{uid}")]
     ])
 
-    # Yuboriladigan matn
-    text = (
-        "<b>🔍 Yangi buyurtma topildi!</b>\n\n"
-        f"📝 <b>Matn:</b>\n{safe_text}\n\n"
-    )
+    text = f"<b>🔍 Yangi buyurtma topildi!</b>\n\n📝 <b>Matn:</b>\n{safe_text}\n\n"
 
-    # 2 guruhga yuborish
     for chat_id in FORWARD_GROUPS:
-        await bot.send_message(
-            chat_id,
-            text,
-            reply_markup=buttons,
-            parse_mode="HTML"
-        )
-
+        await bot.send_message(chat_id, text, reply_markup=buttons, parse_mode="HTML")
 
 # ------------ QABUL QILDIM --------------
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept_message(cb: types.CallbackQuery):
-
     accepter = html.escape(cb.from_user.full_name)
     old = cb.message.text
 
-    # Matn bo‘limini **Buyurtma qabul qilindi** bilan almashtirish
-    new = re.sub(
-        r"📝 <b>Matn:</b>\n(.+?)(\n\n📞|$)",
-        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n📞",
-        old,
-        flags=re.DOTALL
-    )
-
-    # Pastiga kim qabul qilganini qo‘shamiz
-    new += f"\n\n✅ <i>{accepter} qabul qildi</i>"
+    new = re.sub(r"📝 <b>Matn:</b>\n(.+?)(\n\n|$)",
+                 "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n",
+                 old, flags=re.DOTALL)
+    new += f"\n✅ <i>{accepter} qabul qildi</i>"
 
     await cb.message.edit_text(new, parse_mode="HTML")
     await cb.answer("Qabul qilindi!")
 
-
 # ------------ RUN --------------
 async def main():
+    await bot.delete_webhook()  # eski webhooklar bo'lsa o'chiramiz
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
