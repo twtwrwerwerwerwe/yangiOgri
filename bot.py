@@ -3,7 +3,7 @@ import json
 import html
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # ------------ TOKEN --------------
 TOKEN = "7990459607:AAHabwIyHWo5e01xfpP79vrL-RpNWm1OlyA"
@@ -77,8 +77,8 @@ def match_keywords(text: str) -> bool:
 # ------------ /start --------------
 @dp.message(F.text == "/start")
 async def start(msg: types.Message):
-    btn = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
+    btn = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
         resize_keyboard=True
     )
     await msg.answer(
@@ -99,25 +99,15 @@ async def save_number(msg: types.Message):
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-# ------------ XABARNI FILTRLASH (ADMIN CHECK) --------------
+# ------------ XABARNI FILTRLASH --------------
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
-    # Faqat kalit so‘z bo‘lsa ishlaydi
-    if not match_keywords(msg.text):
+    # Faqat FORWARD_GURUPDA kelgan xabarlarni tekshiradi
+    if msg.chat.id not in FORWARD_GROUPS:
         return
 
-    try:
-        # Botni admin qilgan guruhda xabarni o'chirish
-        await msg.delete()
-    except:
-        pass
-
-    # Foydalanuvchi adminligini tekshirish
-    try:
-        member = await bot.get_chat_member(msg.chat.id, msg.from_user.id)
-        if member.status not in ["administrator", "creator"]:
-            return
-    except:
+    # Faqat kalit so‘z bo‘lsa ishlaydi
+    if not match_keywords(msg.text):
         return
 
     uid = str(msg.from_user.id)
@@ -136,9 +126,14 @@ async def filter_messages(msg: types.Message):
     # Yuboriladigan matn
     text = f"<b>🔍 Yangi buyurtma topildi!</b>\n\n📝 <b>Matn:</b>\n{safe_text}\n\n"
 
-    # Guruhga faqat 1 marta yuborish
-    for chat_id in FORWARD_GROUPS:
-        await bot.send_message(chat_id, text, reply_markup=buttons, parse_mode="HTML")
+    # Guruhga yuborish
+    await bot.send_message(FORWARD_GROUPS[0], text, reply_markup=buttons, parse_mode="HTML")
+
+    # Original xabarni o'chirish
+    try:
+        await msg.delete()
+    except:
+        pass
 
 # ------------ QABUL QILDIM --------------
 @dp.callback_query(F.data.startswith("accept_"))
