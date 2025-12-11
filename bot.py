@@ -1,5 +1,6 @@
 import re
 import json
+import html
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
@@ -10,7 +11,7 @@ TOKEN = "8211942218:AAFK0H17Lek3MpFetL2N1HcfAeHB2TOgv5M"
 # ------------ GURUH ID LAR --------------
 FORWARD_GROUPS = [
     -1002963614686,
-    -1003398571650 # 2-guruh (kerak bo'lsa ko'paytirishingiz mumkin)
+    -1003398571650
 ]
 
 bot = Bot(token=TOKEN)
@@ -78,7 +79,7 @@ def match_keywords(text: str) -> bool:
     return any(key in text.lower() for key in KEYWORDS)
 
 
-# ------------ /start va telefon raqami --------------
+# ------------ /start --------------
 @dp.message(F.text == "/start")
 async def start(msg: types.Message):
     btn = ReplyKeyboardMarkup(
@@ -86,10 +87,12 @@ async def start(msg: types.Message):
         resize_keyboard=True
     )
     await msg.answer(
-        "Assalomu alaykum!\n\nBotdan to‘liq foydalanish uchun telefon raqamingizni yuboring 👇",
+        "Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
         reply_markup=btn
     )
 
+
+# ------------ CONTACT SAQLASH --------------
 @dp.message(F.contact)
 async def save_number(msg: types.Message):
     phone = msg.contact.phone_number
@@ -99,13 +102,13 @@ async def save_number(msg: types.Message):
     save_db(db)
 
     await msg.answer(
-        f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n**{phone}**",
-        parse_mode="Markdown",
+        f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
+        parse_mode="HTML",
         reply_markup=types.ReplyKeyboardRemove()
     )
 
 
-# ------------ Xabarlarni filtrlash --------------
+# ------------ XABARNI FILTRLASH --------------
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
 
@@ -121,58 +124,62 @@ async def filter_messages(msg: types.Message):
     uid = str(user.id)
 
     # Profil URL
-    profile_url = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
+    profile_url = (
+        f"https://t.me/{user.username}"
+        if user.username else f"tg://user?id={user.id}"
+    )
 
-    # Telefon raqami
+    # Telefon
     phone = db.get(uid, "Raqam berkitilgan")
 
-    # Xabar manzili (group link)
+    # Xabar linki
     chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
 
-    # Inline tugmalar
+    # Foydalanuvchi matni → HTML escape → 100% xatosiz
+    safe_text = html.escape(msg.text)
+
+    # INLINE TUGMALAR
     buttons = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Profiliga kirish", url=profile_url)],
+        [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
         [InlineKeyboardButton(text="📨 Habar manzili", url=chat_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept_{uid}")]
     ])
 
     # Yuboriladigan matn
     text = (
-        "🔍 **Yangi buyurtma topildi!**\n\n"
-        f"📝 **Matn:**\n{msg.text}\n\n"
+        "<b>🔍 Yangi buyurtma topildi!</b>\n\n"
+        f"📝 <b>Matn:</b>\n{safe_text}\n\n"
     )
 
-    # 2 TA GURUHGA YUBORISH
+    # 2 guruhga yuborish
     for chat_id in FORWARD_GROUPS:
         await bot.send_message(
             chat_id,
             text,
             reply_markup=buttons,
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
 
 
-# ------------ Qabul qildim tugmasi --------------
+# ------------ QABUL QILDIM --------------
 @dp.callback_query(F.data.startswith("accept_"))
 async def accept_message(cb: types.CallbackQuery):
 
-    accepter = cb.from_user.full_name
-
-    # Eski matn
+    accepter = html.escape(cb.from_user.full_name)
     old = cb.message.text
 
-    # Matn bo‘limini yangilaymiz
+    # Matn bo‘limini **Buyurtma qabul qilindi** bilan almashtirish
     new = re.sub(
-        r"📝 \*\*Matn:\*\*\n(.+?)(\n\n|$)",
-        "📝 **Matn:**\nBuyurtma qabul qilindi\n\n",
+        r"📝 <b>Matn:</b>\n(.+?)(\n\n📞|$)",
+        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n📞",
         old,
         flags=re.DOTALL
     )
 
-    # Qabul qilgan odamni qo‘shamiz
-    new += f"\n✅ *{accepter} tomonidan qabul qilindi*"
+    # Pastiga kim qabul qilganini qo‘shamiz
+    new += f"\n\n✅ <i>{accepter} qabul qildi</i>"
 
-    await cb.message.edit_text(new, parse_mode="Markdown")
+    await cb.message.edit_text(new, parse_mode="HTML")
     await cb.answer("Qabul qilindi!")
 
 
