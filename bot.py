@@ -101,7 +101,7 @@ async def save_number(msg: types.Message):
 
 # ------------ XABARNI FILTRLASH --------------
 # Yangi kelgan xabarlarni tekshiradi va faqat 1 marta yuboradi
-sent_messages = set()  # xabarlar idlarini saqlash uchun
+sent_messages = set()  # xabarlar idlarini saqlash
 
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
@@ -135,7 +135,8 @@ async def filter_messages(msg: types.Message):
     text = f"<b>🔍 Yangi buyurtma topildi!</b>\n\n📝 <b>Matn:</b>\n{safe_text}\n\n"
 
     # Guruhga yuborish
-    await bot.send_message(FORWARD_GROUPS[0], text, reply_markup=buttons, parse_mode="HTML")
+    for chat_id in FORWARD_GROUPS:
+        await bot.send_message(chat_id, text, reply_markup=buttons, parse_mode="HTML")
 
     # Original xabarni o'chirish
     try:
