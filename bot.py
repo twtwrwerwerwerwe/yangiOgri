@@ -8,33 +8,16 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardBu
 # ------------ TOKEN --------------
 TOKEN = "7990459607:AAHabwIyHWo5e01xfpP79vrL-RpNWm1OlyA"
 
-# ------------ GURUH ID LAR --------------
-FORWARD_GROUPS = [
-    -1003398571650,
-    -1002963614686
-]
-
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ------------ DATABASE --------------
-DB_FILE = "users.json"
+# ------------ FILTRLANMAYDIGAN GURUHLAR (IGNORE) --------------
+IGNORE_GROUPS = {
+    -1003398571650,
+    -1002963614686
+}
 
-def load_db():
-    try:
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_db(db):
-    with open(DB_FILE, "w") as f:
-        json.dump(db, f, indent=4)
-
-db = load_db()
-
-
-# ------------ KALIT SO‘ZLAR --------------
+# ------------ XABAR FORWARD QILINADIGAN GURUHLAR --------------
 KEYWORDS = [
     # odam bor
     'odam bor','odambor','odam bor ekan','odam bor edi','odam borakan',
@@ -75,9 +58,31 @@ KEYWORDS = [
     'доставкa бор','даставка бор','доставка бор','доставкa керак'
 ]
 
+# ------------ DATABASE --------------
+DB_FILE = "users.json"
+
+def load_db():
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_db(db):
+    with open(DB_FILE, "w") as f:
+        json.dump(db, f, indent=4)
+
+db = load_db()
+
+# ------------ KALIT SO‘ZLAR --------------
+KEYWORDS = [
+    'odam', 'kishi', 'bor', 'ketadi', 'pochta', 'mashina',
+    'odam bor', '1kishi', '2kishi', '3kishi', '4kishi',
+    'mashina kerak', 'dostavka', 'dastavka'
+]
+
 def match_keywords(text: str) -> bool:
     return any(key in text.lower() for key in KEYWORDS)
-
 
 # ------------ /start --------------
 @dp.message(F.text == "/start")
@@ -90,7 +95,6 @@ async def start(msg: types.Message):
         "Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
         reply_markup=btn
     )
-
 
 # ------------ CONTACT SAQLASH --------------
 @dp.message(F.contact)
@@ -107,14 +111,23 @@ async def save_number(msg: types.Message):
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-
-# ------------ XABARNI FILTRLASH --------------
+# ================================================================
+#      🔥 ASOSIY QISMI: FILTRLANMAYDIGAN GURUHLARNI O‘TKAZISH
+# ================================================================
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
 
+    chat_id = msg.chat.id
+
+    # 🔥 1) AGAR XABAR IGNORE GURUHDAN BO’LSA → HECH NIMA QILINMAYDI
+    if chat_id in IGNORE_GROUPS:
+        return
+
+    # 🔥 2) AGAR KALIT SO‘Z YO‘Q BO’LSA → TO‘XTATILADI
     if not match_keywords(msg.text):
         return
 
+    # 🔥 3) QOLGANLAR FILTRLANADI
     try:
         await msg.delete()
     except:
@@ -123,7 +136,7 @@ async def filter_messages(msg: types.Message):
     user = msg.from_user
     uid = str(user.id)
 
-    # Profil URL
+    # Profil
     profile_url = (
         f"https://t.me/{user.username}"
         if user.username else f"tg://user?id={user.id}"
@@ -135,31 +148,28 @@ async def filter_messages(msg: types.Message):
     # Xabar linki
     chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
 
-    # Foydalanuvchi matni → HTML escape → 100% xatosiz
     safe_text = html.escape(msg.text)
 
-    # INLINE TUGMALAR
     buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
         [InlineKeyboardButton(text="📨 Habar manzili", url=chat_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept_{uid}")]
     ])
 
-    # Yuboriladigan matn
     text = (
         "<b>🔍 Yangi buyurtma topildi!</b>\n\n"
         f"📝 <b>Matn:</b>\n{safe_text}\n\n"
+        f"📞 <b>Raqam:</b> {phone}\n"
     )
 
-    # 2 guruhga yuborish
-    for chat_id in FORWARD_GROUPS:
+    # 🔥 4) 2 ta forward guruhga yuborish
+    for gid in FORWARD_GROUPS:
         await bot.send_message(
-            chat_id,
+            gid,
             text,
             reply_markup=buttons,
             parse_mode="HTML"
         )
-
 
 # ------------ QABUL QILDIM --------------
 @dp.callback_query(F.data.startswith("accept_"))
@@ -168,20 +178,17 @@ async def accept_message(cb: types.CallbackQuery):
     accepter = html.escape(cb.from_user.full_name)
     old = cb.message.text
 
-    # Matn bo‘limini **Buyurtma qabul qilindi** bilan almashtirish
     new = re.sub(
-        r"📝 <b>Matn:</b>\n(.+?)(\n\n📞|$)",
+        r"📝 <b>Matn:</b>\n(.+?)(\n📞|$)",
         "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n📞",
         old,
         flags=re.DOTALL
     )
 
-    # Pastiga kim qabul qilganini qo‘shamiz
     new += f"\n\n✅ <i>{accepter} qabul qildi</i>"
 
     await cb.message.edit_text(new, parse_mode="HTML")
     await cb.answer("Qabul qilindi!")
-
 
 # ------------ RUN --------------
 async def main():
