@@ -18,6 +18,28 @@ IGNORE_GROUPS = {
 }
 
 # ------------ XABAR FORWARD QILINADIGAN GURUHLAR --------------
+FORWARD_GROUPS = [
+    -1003398571650,
+    -1002963614686
+]
+
+# ------------ DATABASE --------------
+DB_FILE = "users.json"
+
+def load_db():
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_db(db):
+    with open(DB_FILE, "w") as f:
+        json.dump(db, f, indent=4)
+
+db = load_db()
+
+# ------------ KALIT SO‘ZLAR --------------
 KEYWORDS = [
     # odam bor
     'odam bor','odambor','odam bor ekan','odam bor edi','odam borakan',
@@ -56,29 +78,6 @@ KEYWORDS = [
     # dostavka
     'dastavka bor','dostavka bor','dastafka','dastafka bor',
     'доставкa бор','даставка бор','доставка бор','доставкa керак'
-]
-
-# ------------ DATABASE --------------
-DB_FILE = "users.json"
-
-def load_db():
-    try:
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_db(db):
-    with open(DB_FILE, "w") as f:
-        json.dump(db, f, indent=4)
-
-db = load_db()
-
-# ------------ KALIT SO‘ZLAR --------------
-KEYWORDS = [
-    'odam', 'kishi', 'bor', 'ketadi', 'pochta', 'mashina',
-    'odam bor', '1kishi', '2kishi', '3kishi', '4kishi',
-    'mashina kerak', 'dostavka', 'dastavka'
 ]
 
 def match_keywords(text: str) -> bool:
