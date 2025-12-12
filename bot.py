@@ -10,7 +10,8 @@ TOKEN = "7990459607:AAHabwIyHWo5e01xfpP79vrL-RpNWm1OlyA"
 
 # ------------ GURUH ID LAR --------------
 FORWARD_GROUPS = [
-    -5005114463
+    -1003398571650,
+    -1003398571650
 ]
 
 bot = Bot(token=TOKEN)
