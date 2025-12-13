@@ -3,27 +3,33 @@ import json
 import html
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    KeyboardButton,
+    ReplyKeyboardMarkup
+)
 
-# ------------ TOKEN --------------
+# ================= TOKEN =================
 TOKEN = "7990459607:AAHabwIyHWo5e01xfpP79vrL-RpNWm1OlyA"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ------------ FILTRLANMAYDIGAN GURUHLAR (IGNORE) --------------
+# ================= GURUHLAR =================
+# bu guruhlardan kelgan xabarlar umuman filtrlanmaydi
 IGNORE_GROUPS = {
     -1003398571650,
     -1002963614686
 }
 
-# ------------ XABAR FORWARD QILINADIGAN GURUHLAR --------------
+# bu guruhlarga buyurtma yuboriladi
 FORWARD_GROUPS = [
     -1003398571650,
     -1002963614686
 ]
 
-# ------------ DATABASE --------------
+# ================= DATABASE =================
 DB_FILE = "users.json"
 
 def load_db():
@@ -39,7 +45,7 @@ def save_db(db):
 
 db = load_db()
 
-# ------------ KALIT SO‘ZLAR --------------
+# ================= KEYWORDS =================
 KEYWORDS = [
     # odam bor
     'odam bor','odambor','odam bor ekan','odam bor edi','odam borakan',
@@ -81,52 +87,46 @@ KEYWORDS = [
 ]
 
 def match_keywords(text: str) -> bool:
-    return any(key in text.lower() for key in KEYWORDS)
+    text = text.lower()
+    return any(k in text for k in KEYWORDS)
 
-# ------------ /start --------------
+# ================= /start =================
 @dp.message(F.text == "/start")
 async def start(msg: types.Message):
-    btn = ReplyKeyboardMarkup(
+    kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
         resize_keyboard=True
     )
     await msg.answer(
-        "Assalomu alaykum!\n\nBotdan foydalanish uchun telefon raqamingizni yuboring 👇",
-        reply_markup=btn
+        "Assalomu alaykum!\n\nTelefon raqamingizni yuboring 👇",
+        reply_markup=kb
     )
 
-# ------------ CONTACT SAQLASH --------------
+# ================= CONTACT =================
 @dp.message(F.contact)
-async def save_number(msg: types.Message):
-    phone = msg.contact.phone_number
-    user_id = str(msg.from_user.id)
-
-    db[user_id] = phone
+async def save_contact(msg: types.Message):
+    db[str(msg.from_user.id)] = msg.contact.phone_number
     save_db(db)
 
     await msg.answer(
-        f"Rahmat! 📞\nSizning telefon raqamingiz saqlandi:\n\n<b>{phone}</b>",
-        parse_mode="HTML",
+        "✅ Raqamingiz saqlandi",
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-# ================================================================
-#      🔥 ASOSIY QISMI: FILTRLANMAYDIGAN GURUHLARNI O‘TKAZISH
-# ================================================================
+# ================= FILTR =================
 @dp.message(F.text)
 async def filter_messages(msg: types.Message):
-
     chat_id = msg.chat.id
 
-    # 🔥 1) AGAR XABAR IGNORE GURUHDAN BO’LSA → HECH NIMA QILINMAYDI
+    # 1️⃣ ignore guruh bo‘lsa → umuman tegmaymiz
     if chat_id in IGNORE_GROUPS:
         return
 
-    # 🔥 2) AGAR KALIT SO‘Z YO‘Q BO’LSA → TO‘XTATILADI
+    # 2️⃣ keyword bo‘lmasa → o‘tamiz
     if not match_keywords(msg.text):
         return
 
-    # 🔥 3) QOLGANLAR FILTRLANADI
+    # 3️⃣ xabarni o‘chiramiz
     try:
         await msg.delete()
     except:
@@ -135,33 +135,24 @@ async def filter_messages(msg: types.Message):
     user = msg.from_user
     uid = str(user.id)
 
-    # Profil
-    profile_url = (
-        f"https://t.me/{user.username}"
-        if user.username else f"tg://user?id={user.id}"
-    )
-
-    # Telefon
     phone = db.get(uid, "Raqam berkitilgan")
 
-    # Xabar linki
-    chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
+    # 🔗 ASL XABAR LINKI (qaysi guruhdan bo‘lsa o‘sha yerga olib boradi)
+    source_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
 
     safe_text = html.escape(msg.text)
 
     buttons = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
-        [InlineKeyboardButton(text="📨 Habar manzili", url=chat_link)],
-        [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept_{uid}")]
+        [InlineKeyboardButton(text="📨 Habar manzili", url=source_link)],
+        [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept:{uid}")]
     ])
 
     text = (
-        "<b>🔍 Yangi buyurtma topildi!</b>\n\n"
+        "<b>🚖 Yangi buyurtma!</b>\n\n"
         f"📝 <b>Matn:</b>\n{safe_text}\n\n"
-        f"📞 <b>Raqam:</b> {phone}\n"
+        f"📞 <b>Raqam:</b> {phone}"
     )
 
-    # 🔥 4) 2 ta forward guruhga yuborish
     for gid in FORWARD_GROUPS:
         await bot.send_message(
             gid,
@@ -170,26 +161,28 @@ async def filter_messages(msg: types.Message):
             parse_mode="HTML"
         )
 
-# ------------ QABUL QILDIM --------------
-@dp.callback_query(F.data.startswith("accept_"))
-async def accept_message(cb: types.CallbackQuery):
-
+# ================= QABUL QILDIM =================
+@dp.callback_query(F.data.startswith("accept:"))
+async def accept(cb: types.CallbackQuery):
     accepter = html.escape(cb.from_user.full_name)
-    old = cb.message.text
 
-    new = re.sub(
-        r"📝 <b>Matn:</b>\n(.+?)(\n📞|$)",
-        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n📞",
-        old,
-        flags=re.DOTALL
+    # eski matndan faqat sarlavha va raqamni qoldiramiz
+    new_text = (
+        "<b>🚖 Buyurtma qabul qilindi!</b>\n\n"
+        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n"
+        f"✅ <i>{accepter} tomonidan qabul qilindi</i>"
     )
 
-    new += f"\n\n✅ <i>{accepter} qabul qildi</i>"
+    # 🔥 XABARNI HAMMA UCHUN YANGILAYMIZ
+    await cb.message.edit_text(
+        new_text,
+        parse_mode="HTML",
+        reply_markup=None  # tugmalar o‘chadi
+    )
 
-    await cb.message.edit_text(new, parse_mode="HTML")
-    await cb.answer("Qabul qilindi!")
+    await cb.answer("Siz buyurtmani qabul qildingiz")
 
-# ------------ RUN --------------
+# ================= RUN =================
 async def main():
     await dp.start_polling(bot)
 
