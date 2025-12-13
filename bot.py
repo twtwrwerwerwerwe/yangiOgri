@@ -118,11 +118,11 @@ async def save_contact(msg: types.Message):
 async def filter_messages(msg: types.Message):
     chat_id = msg.chat.id
 
-    # 1️⃣ ignore guruh bo‘lsa → umuman tegmaymiz
+    # 1️⃣ ignore guruh → umuman tegmaymiz
     if chat_id in IGNORE_GROUPS:
         return
 
-    # 2️⃣ keyword bo‘lmasa → o‘tamiz
+    # 2️⃣ keyword yo‘q → o‘tamiz
     if not match_keywords(msg.text):
         return
 
@@ -137,12 +137,19 @@ async def filter_messages(msg: types.Message):
 
     phone = db.get(uid, "Raqam berkitilgan")
 
-    # 🔗 ASL XABAR LINKI (qaysi guruhdan bo‘lsa o‘sha yerga olib boradi)
+    # 🔗 ASL XABAR LINKI
     source_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
+
+    # 👤 PROFIL LINK
+    profile_link = (
+        f"https://t.me/{user.username}"
+        if user.username else f"tg://user?id={user.id}"
+    )
 
     safe_text = html.escape(msg.text)
 
     buttons = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Profil", url=profile_link)],
         [InlineKeyboardButton(text="📨 Habar manzili", url=source_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept:{uid}")]
     ])
@@ -166,7 +173,6 @@ async def filter_messages(msg: types.Message):
 async def accept(cb: types.CallbackQuery):
     accepter = html.escape(cb.from_user.full_name)
 
-    # eski matndan faqat sarlavha va raqamni qoldiramiz
     new_text = (
         "<b>🚖 Buyurtma qabul qilindi!</b>\n\n"
         "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n"
