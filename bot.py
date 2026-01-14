@@ -166,7 +166,7 @@ async def filter_messages(msg: types.Message):
     user = msg.from_user
     uid = str(user.id)
 
-    # 👤 USER MENTION TO‘G‘RI SHAKLDA
+    # 👤 USER MENTION
     if user.username:
         mention = f"@{user.username}"
     else:
@@ -179,7 +179,7 @@ async def filter_messages(msg: types.Message):
     except:
         pass
 
-    # 📨 MENTION XABAR 20 SONIYA UCHUN
+    # 📨 MENTION XABAR
     notify_msg = await bot.send_message(
         chat_id=chat_id,
         text=(
@@ -190,8 +190,8 @@ async def filter_messages(msg: types.Message):
         parse_mode="HTML"
     )
 
-    # ⏱ 20 SONIYADAN KEYIN O‘CHIRISH
-    await asyncio.sleep(20)
+    # ⏱ 5 SONIYADAN KEYIN O‘CHIRAMIZ
+    await asyncio.sleep(5)
     try:
         await notify_msg.delete()
     except:
@@ -201,10 +201,23 @@ async def filter_messages(msg: types.Message):
     phone = db.get(uid, "Raqam berkitilgan")
     safe_text = html.escape(msg.text)
 
+    profile_link = (
+        f"https://t.me/{user.username}"
+        if user.username else f"tg://user?id={user.id}"
+    )
+
+    # 👤 PROFIL BUTTON
+    if user.username:
+        profile_url = f"https://t.me/{user.username}"
+    else:
+        profile_url = f"tg://user?id={user.id}"
+
     buttons = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Profil", url=f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}")],
-        [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept:{uid}")]
+        [InlineKeyboardButton(text="👤 Profil", url=profile_url)],
+        [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept:{user.id}")]
     ])
+
+
 
     order_text = (
         "<b>🚖 Yangi buyurtma!</b>\n\n"
@@ -219,7 +232,6 @@ async def filter_messages(msg: types.Message):
             reply_markup=buttons,
             parse_mode="HTML"
         )
-
 
 # ================= QABUL QILDIM =================
 @dp.callback_query(F.data.startswith("accept:"))
