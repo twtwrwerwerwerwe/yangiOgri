@@ -1,3 +1,4 @@
+import re
 import json
 import html
 import asyncio
@@ -6,8 +7,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     KeyboardButton,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove
+    ReplyKeyboardMarkup
 )
 
 # ================= TOKEN =================
@@ -17,11 +17,13 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ================= GURUHLAR =================
+# bu guruhlardan kelgan xabarlar umuman filtrlanmaydi
 IGNORE_GROUPS = {
     -1003398571650,
     -1002963614686
 }
 
+# bu guruhlarga buyurtma yuboriladi
 FORWARD_GROUPS = [
     -1003398571650,
     -1002963614686
@@ -150,7 +152,7 @@ async def save_contact(msg: types.Message):
 
     await msg.answer(
         "✅ Raqamingiz saqlandi",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=types.ReplyKeyboardRemove()
     )
 
 # ================= FILTR =================
@@ -158,61 +160,43 @@ async def save_contact(msg: types.Message):
 async def filter_messages(msg: types.Message):
     chat_id = msg.chat.id
 
+    # 1️⃣ ignore guruh → umuman tegmaymiz
     if chat_id in IGNORE_GROUPS:
         return
 
+    # 2️⃣ keyword yo‘q → o‘tamiz
     if not match_keywords(msg.text):
         return
 
-    user = msg.from_user
-    uid = str(user.id)
-
-    # 🔹 PROFILE LINK
-    if user.username:
-        profile_link = f"https://t.me/{user.username}"
-    else:
-        profile_link = f"tg://user?id={user.id}"
-
-    # 🔹 USER MENTION
-    if user.username:
-        mention = f"@{user.username}"
-    else:
-        safe_name = html.escape(user.full_name)
-        mention = f'<a href="tg://user?id={user.id}">{safe_name}</a>'
-
-    # 🔥 ASL XABARNI O‘CHIRAMIZ
+    # 3️⃣ xabarni o‘chiramiz
     try:
         await msg.delete()
     except:
         pass
 
-    # 📨 GURUHDA XABAR: BUYURTMA QABUL QILINDI
-    notify_msg = await bot.send_message(
-        chat_id=chat_id,
-        text=(
-            f"{mention}\n\n"
-            "✅ <b>Buyurtmangiz qabul qilindi!</b>\n"
-            "🚖 Shofyor tez orada siz bilan aloqaga chiqadi."
-        ),
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👤 Profil", url=profile_link)]
-        ])
+    user = msg.from_user
+    uid = str(user.id)
+
+    phone = db.get(uid, "Raqam berkitilgan")
+
+    # 🔗 ASL XABAR LINKI
+    source_link = f"https://t.me/c/{str(msg.chat.id)[4:]}/{msg.message_id}"
+
+    # 👤 PROFIL LINK
+    profile_link = (
+        f"https://t.me/{user.username}"
+        if user.username else f"tg://user?id={user.id}"
     )
 
-    # ⏱ 20 SONIYADAN KEYIN O‘CHIRISH
-    asyncio.create_task(auto_delete(notify_msg))
-
-    # ================= BUYURTMA YUBORISH =================
-    phone = db.get(uid, "Raqam berkitilgan")
     safe_text = html.escape(msg.text)
 
     buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Profil", url=profile_link)],
+        [InlineKeyboardButton(text="📨 Habar manzili", url=source_link)],
         [InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"accept:{uid}")]
     ])
 
-    order_text = (
+    text = (
         "<b>🚖 Yangi buyurtma!</b>\n\n"
         f"📝 <b>Matn:</b>\n{safe_text}\n\n"
         f"📞 <b>Raqam:</b> {phone}"
@@ -221,18 +205,10 @@ async def filter_messages(msg: types.Message):
     for gid in FORWARD_GROUPS:
         await bot.send_message(
             gid,
-            order_text,
+            text,
             reply_markup=buttons,
             parse_mode="HTML"
         )
-
-# ================= AUTOMATIC DELETE =================
-async def auto_delete(message: types.Message, delay: int = 20):
-    await asyncio.sleep(delay)
-    try:
-        await message.delete()
-    except:
-        pass
 
 # ================= QABUL QILDIM =================
 @dp.callback_query(F.data.startswith("accept:"))
@@ -241,16 +217,18 @@ async def accept(cb: types.CallbackQuery):
 
     new_text = (
         "<b>🚖 Buyurtma qabul qilindi!</b>\n\n"
+        "📝 <b>Matn:</b>\nBuyurtma qabul qilindi\n\n"
         f"✅ <i>{accepter} tomonidan qabul qilindi</i>"
     )
 
+    # 🔥 XABARNI HAMMA UCHUN YANGILAYMIZ
     await cb.message.edit_text(
         new_text,
         parse_mode="HTML",
-        reply_markup=None
+        reply_markup=None  # tugmalar o‘chadi
     )
 
-    await cb.answer("Buyurtma sizga biriktirildi")
+    await cb.answer("Siz buyurtmani qabul qildingiz")
 
 # ================= RUN =================
 async def main():
